@@ -40,6 +40,8 @@ Print all commands to upgrade packages::
 Complete command reference
 ..........................
 
+::
+
    -d --discover  print all commands to discover current channels
    -i --install   print all commands to install current packages
    -c --channels  show list of channels with installed packages
