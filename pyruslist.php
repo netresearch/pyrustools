@@ -16,13 +16,30 @@ declare(encoding = 'UTF-8');
  *    -c --channels  show list of channels with installed packages
  *    -p --packages  show list of installed packages
  *    -u --upgrades  print all commands to upgrade packages
- *    -x --pyrus-command [pyrus]
- *        pyrus commnd to use, f.e. 'pyrus' or 'pyrus-5.4.12'
+ *    -s --pyrus-source [pyrus]
+ *        pyrus command to retrive package information, f.e. 'pyrus' or 'pyrus-5.4.12'
+ *    -t --pyrus-target [pyrus]
+ *        pyrus command to use wiht printed out commands, f.e. 'pyrus-5.4.12'
  *    -h --help      show this help screen
+ *    -X --execute   executes the commands the otherwise printed commends
+ *
+ * Exporting all commands required to install packages of given pyrus
+ * installation on another pyrus installation:
+ *
+ * $ pyruslist.php -i -s pyrus_5.4.14
+ *
+ * Importing packages from one pyrus installation to another:
+ *
+ * $ pyruslist.php -X -s pyrus_5.4.14 -t pyrus_5.4.15
  *
  * (C) 2013 Sebastian Mendel <sebastian.mendel@netresearch.de>
  *
- * @author Sebastian Mendel <sebastian.mendel@netresearch.de>
+ * @category Pyrus
+ * @package  Netresearch_Phpfarm
+ * @author   Sebastian Mendel <sebastian.mendel@netresearch.de>
+ * @license  http://www.gnu.org/licenses/agpl.html AGPL
+ * @version  0.1.0
+ * @link     http://netresearch.de/
  */
 
 
@@ -45,15 +62,21 @@ $arOptions = array(
     'bVerbose' => array(
         '-v', '--verbose',
     ),
-    'strPyrusCommand' => array(
-        '-x', '--pyrus-command',
+    'strPyrusSource' => array(
+        '-s', '--pyrus-source',
+    ),
+    'strPyrusTarget' => array(
+        '-t', '--pyrus-target',
+    ),
+    'bExec' => array(
+        '-X', '--execute',
     ),
     'bHelp' => array(
         '-h', '--help',
     ),
 );
 
-$strPyrusCommand = 'pyrus';
+$strPyrusSource = 'pyrus';
 
 if ($argc) {
     foreach (array_slice($argv, 1) as $strV) {
@@ -77,14 +100,16 @@ if ($argc) {
     }
 }
 
+if (empty($strPyrusTarget)) {
+    $strPyrusTarget = $strPyrusSource;
+}
 
 if (! empty($bHelp)) {
-
     $strFile = file_get_contents(__FILE__);
     $arLines = explode("\n", $strFile);
     foreach ($arLines as $strLine) {
         if (0 === strpos($strLine, ' *')) {
-            echo "\t" . substr($strLine, 3) . "\n";
+            outL("\t" . substr($strLine, 3));
         }
         if (0 === strpos($strLine, ' */')) {
             exit;
@@ -94,7 +119,7 @@ if (! empty($bHelp)) {
 }
 
 
-$strList = x("$strPyrusCommand list-packages");
+$strList = x("$strPyrusSource list-packages");
 
 $arList = explode("\n", $strList);
 
@@ -119,31 +144,51 @@ foreach ($arList as $strEntry) {
     }
 }
 
-if (! empty($pChannels)) {
-    echo "\n" . 'Channels:' . "\n";
-    echo '=========' . "\n";
+if (! empty($bChannels)) {
+    outH('Channels');
     foreach ($arChannels as $strChannel => $arChannel) {
-        echo $strChannel . "\n";
+        outL($strChannel);
     }
 }
 
-if (! empty($bDiscover)) {
+if (! empty($bDiscover) && ! empty($arChannels)) {
     foreach ($arChannels as $strChannel => $arChannel) {
-        echo $strPyrusCommand . ' channel-discover ' . $strChannel . "\n";
+        $strCommand = $strPyrusTarget . ' channel-discover ' . $strChannel;
+
+        if (! empty($bExec)) {
+            x($strCommand);
+        } else {
+            outL($strCommand);
+        }
     }
 }
 
-if (! empty($bPackages)) {
-    echo "\n" . 'Packages:' . "\n";
-    echo '=========' . "\n";
+if (! empty($bPackages) && ! empty($arPackages)) {
+    outH('Packages');
     foreach ($arPackages as $strPackage) {
-        echo $strPackage . "\n";
+        outL($strPackage);
     }
 }
 
-if (! empty($bInstall)) {
+if (! empty($bInstall) && ! empty($arPackages)) {
     foreach ($arPackages as $strPackage) {
-        echo $strPyrusCommand . ' install -f ' . $strPackage . "\n";
+        $strCommand = $strPyrusTarget . ' install -f ' . $strPackage;
+
+        if (! empty($bExec)) {
+            x($strCommand);
+        } else {
+            outL($strCommand);
+        }
+
+        if (0 === strpos($strPackage, 'pecl.php.net/')) {
+            $strCommand = $strPyrusTarget . ' build ' . $strPackage;
+
+            if (! empty($bExec)) {
+                x($strCommand);
+            } else {
+                outL($strCommand);
+            }
+        }
     }
 }
 
@@ -152,7 +197,7 @@ if (! empty($bUpgrades)) {
     $arPackagesUpgrades = $arChannelUpgrades = array();
     foreach ($arChannels as $strChannel => $arChannel) {
         $strUpgradePackages = x(
-            $strPyrusCommand . ' remote-list ' . $strChannel
+            $strPyrusSource . ' remote-list ' . $strChannel
         );
 
         $arUpgradePackages = explode("\n", $strUpgradePackages);
@@ -184,7 +229,8 @@ if (! empty($bUpgrades)) {
                     $arChannelUpgrades[$strChannel][$arPackage['name']]
                         = $arPackage['name'] . '-' . $arPackage['version'];
                     $arPackagesUpgrades[]
-                        = $strChannel . '/' . $arPackage['name'] . '-' . $arPackage['version'];
+                        = $strChannel . '/' . $arPackage['name']
+                        . '-' . $arPackage['version'];
 
                     $arPackage = array(
                         'name' => '',
@@ -197,7 +243,13 @@ if (! empty($bUpgrades)) {
     }
 
     foreach ($arPackagesUpgrades as $strPackageUpgrade) {
-        echo $strPyrusCommand . ' upgrade -f ' . $strPackageUpgrade . "\n";
+        $strCommand = $strPyrusSource . ' upgrade -f ' . $strPackageUpgrade;
+
+        if (! empty($bExec)) {
+            x($strCommand);
+        } else {
+            outL($strCommand);
+        }
     }
 }
 
@@ -210,29 +262,91 @@ if (! empty($bUpgrades)) {
  */
 function x($strCommand)
 {
-    if (! empty($GLOBALS['bVerbose'])) {
-        echo 'exec: "' . $strCommand . '"' . "\n";
-    }
+    L('exec: "' . $strCommand . '"');
     return shell_exec($strCommand);
 }
 
 /**
- * Set an option. usualy from cli arguments.
+ * Set an option. usually from CLI arguments.
  *
  * @param string $strSwitch Used command argument switch
  * @param string $mValue    Value for option to set
+ *
+ * @return void
  */
 function setOption($strSwitch, $mValue = true)
 {
     static $strLastOption = null;
 
+    if (null === $strSwitch && null !== $strLastOption) {
+        L('option: "' . $strLastOption . '" = ' . (string) $mValue);
+        $GLOBALS[$strLastOption] = $mValue;
+        $strLastOption = null;
+        return;
+    }
+    $strLastOption = null;
+
+    $bValid = false;
+
     foreach ($GLOBALS['arOptions'] as $strOption => $arOptionSwitches) {
-        if (null === $strSwitch && null !== $strLastOption) {
-            $GLOBALS[$strLastOption] = $mValue;
-        } elseif (in_array($strSwitch, $arOptionSwitches)) {
+        if (in_array($strSwitch, $arOptionSwitches)) {
+            L('option: "' . $strOption . '" = ' . (string) $mValue);
             $GLOBALS[$strOption] = $mValue;
             $strLastOption = $strOption;
+            $bValid = true;
+            break;
         }
+    }
+
+    if (! $bValid) {
+        outL('Unknown option: "' . $strSwitch . '"');
+    }
+}
+
+
+
+/**
+ * Print headline.
+ *
+ * @param string $strHeadLine Headline content.
+ *
+ * @return void
+ */
+function outH($strHeadLine)
+{
+    outL("\n" . $strHeadLine);
+    outL(str_repeat('=', strlen($strHeadLine)));
+}
+
+
+
+/**
+ * Print single line of text.
+ *
+ * @param string $strLine Text line content.
+ *
+ * @return void
+ */
+function outL($strLine)
+{
+    echo $strLine . "\n";
+}
+
+
+
+/**
+ * Log messages.
+ *
+ * Message is printed to stdout if verbose is true.
+ *
+ * @param string $strLine Message to log
+ *
+ * @return void
+ */
+function L($strLine)
+{
+    if (! empty($GLOBALS['bVerbose'])) {
+        outL($strLine);
     }
 }
 ?>
