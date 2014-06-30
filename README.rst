@@ -89,8 +89,11 @@ Complete command reference
    -c --channels  show list of channels with installed packages
    -p --packages  show list of installed packages
    -u --upgrades  print all commands to upgrade packages
-   -x --pyrus-command [pyrus]
-       pyrus commnd to use, f.e. 'pyrus' or 'pyrus-5.4.12'
+   -s --pyrus-source [pyrus]
+       pyrus command to retrive package information, f.e. 'pyrus' or 'pyrus-5.4.12'
+   -t --pyrus-target [pyrus]
+       pyrus command to use wiht printed out commands, f.e. 'pyrus-5.4.12'
    -h --help      show this help screen
-	
+   -X --execute   executes the commands the otherwise printed commends
+
 (C) 2013 Sebastian Mendel <sebastian.mendel@netresearch.de>
